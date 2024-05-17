@@ -2,6 +2,8 @@ require("dotenv").config();
 const app = require("./app");
 const config = require("./config/config");
 
-app.listen(config.port, () => {
+const PORT = config.port;
+
+app.listen(PORT, () => {
   console.log(`Server is running on port ${config.port}`);
 });
