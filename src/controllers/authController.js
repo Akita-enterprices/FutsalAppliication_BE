@@ -7,7 +7,9 @@ const generateToken = (id) => {
 };
 
 exports.signup = async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, phone } = req.body;
+  console.log(req.body);
+  // Include phone here
   try {
     const userExists = await User.findOne({ email });
 
@@ -15,13 +17,14 @@ exports.signup = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const user = await User.create({ username, email, password });
+    const user = await User.create({ username, email, password, phone }); // Include phone here
 
     if (user) {
       res.status(201).json({
         _id: user._id,
         username: user.username,
         email: user.email,
+        phone: user.phone, // Include phone in the response
         token: generateToken(user._id),
       });
     } else {
@@ -36,12 +39,14 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
+    console.log(req.body);
 
     if (user && (await user.matchPassword(password))) {
       res.json({
         _id: user._id,
         username: user.username,
         email: user.email,
+        phone: user.phone,
         token: generateToken(user._id),
       });
     } else {
