@@ -18,7 +18,7 @@ app.use(cors());
 const corsOptions = {
   origin: [
     "http://localhost:3000",
-    "https://futsalappliication-be.onrender.com",
+    "https://futsal-application-0fjv.onrender.com",
   ], // Add your frontend URLs here
   optionsSuccessStatus: 200,
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
