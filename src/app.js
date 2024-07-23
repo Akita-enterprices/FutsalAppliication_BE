@@ -15,11 +15,16 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// const corsOptions = {
-//   origin: "http://localhost:3000", // Your frontend's URL
-//   optionsSuccessStatus: 200,
-// };
-// app.use(cors(corsOptions));
+const corsOptions = {
+  origin: [
+    "http://localhost:3000",
+    "https://futsalappliication-be.onrender.com",
+  ], // Add your frontend URLs here
+  optionsSuccessStatus: 200,
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  allowedHeaders: "Content-Type,Authorization",
+};
+app.use(cors(corsOptions));
 
 // Connect to MongoDB
 mongoose
