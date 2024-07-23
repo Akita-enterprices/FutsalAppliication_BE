@@ -41,10 +41,11 @@ const adminSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  // fileName: {
-  //   type: String,
-  //   required: true,
-  // },
+  fileName: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Image",
+    required: true,
+  },
   agreeTerms: {
     type: Boolean,
     required: true,
