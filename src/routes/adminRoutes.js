@@ -10,9 +10,9 @@ const {
 } = require("../controllers/adminController");
 
 router.post("/register", upload.single("file"), registerAdmin);
-router.get("/", getAllAdmins); // Get all admins
-router.get("/:id", getAdminById); // Get admin by ID
-router.put("/:id", updateAdmin); // Update admin by ID
-router.delete("/:id", deleteAdmin); // Delete admin by ID
+router.get("/", getAllAdmins);
+router.get("/:id", getAdminById);
+router.put("/:id", updateAdmin);
+router.delete("/:id", deleteAdmin);
 
 module.exports = router;
