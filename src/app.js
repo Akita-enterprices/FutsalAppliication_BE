@@ -9,6 +9,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const config = require("./config/config");
 const errorHandler = require("./utils/errorHandler");
 const cors = require("cors");
+const availableRoutes = require("./routes/availableRoutes");
 
 dotenv.config();
 const app = express();
@@ -18,6 +19,7 @@ app.use(express.json());
 const corsOptions = {
   origin: [
     "http://localhost:3000",
+    "http://localhost:3001",
     "https://futsal-application-0fjv.onrender.com",
   ], // Add your frontend URLs here
   optionsSuccessStatus: 200,
@@ -43,7 +45,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/payments", paymentRoutes);
-
+app.use("/api/available-times", availableRoutes);
 app.use(errorHandler);
 
 module.exports = app;
