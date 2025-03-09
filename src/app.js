@@ -38,7 +38,7 @@ mongoose
     console.error("Failed to connect to MongoDB", err);
   });
 
-app.use(express.json());
+// app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
