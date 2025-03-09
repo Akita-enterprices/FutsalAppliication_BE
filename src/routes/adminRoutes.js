@@ -28,4 +28,5 @@ router.get("/protected", checkJwt, (req, res) => {
   });
 });
 
+
 module.exports = router;
