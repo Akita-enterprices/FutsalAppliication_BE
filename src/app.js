@@ -30,7 +30,7 @@ app.use(cors(corsOptions));
 
 // Connect to MongoDB
 mongoose
-  .connect(config.dbUri, { useNewUrlParser: true, useUnifiedTopology: true })
+  .connect(config.dbUri)  // Removed deprecated options
   .then(() => {
     console.log("Connected to MongoDB");
   })

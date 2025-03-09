@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs');
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
 
-
 exports.registerAdmin = async (req, res) => {
   const {
     name,
@@ -18,32 +17,26 @@ exports.registerAdmin = async (req, res) => {
     width,
     specification,
     agreeTerms,
-    email, // Add email field
-    password, // Add password field
+    email,
+    password,
   } = req.body;
 
   try {
-    // Validate numeric fields
+    // Ensure numeric fields are valid
     const validatedCapacity = parseInt(capacity);
     const validatedLength = parseFloat(length);
     const validatedWidth = parseFloat(width);
 
-    // Hash the password before saving
-    const hashedPassword = await bcrypt.hash(password, 10); // Hash with a salt factor of 10
-
     if (req.files && req.files.length > 0) {
-      // Save images to the Image model and Cloudinary
+      // Save images to the Image model
       const imageUrls = [];
       for (const file of req.files) {
-        const newImage = new Image({
-          url: file.path,
-          filename: file.filename,
-        });
+        const newImage = new Image({ url: file.path, filename: file.filename });
         await newImage.save();
         imageUrls.push(newImage._id);
       }
 
-      // Create a new Admin object with the image references and hashed password
+      // Create new admin (Mongoose will hash password)
       const newAdmin = new Admin({
         name,
         idNumber,
@@ -55,76 +48,61 @@ exports.registerAdmin = async (req, res) => {
         length: validatedLength,
         width: validatedWidth,
         specification,
-        fileName: imageUrls, // Store array of Image IDs
+        fileName: imageUrls,
         agreeTerms,
-        email, // Store email
-        password: hashedPassword, // Store hashed password
+        email,
+        password, // Store plain password (it will be hashed automatically)
       });
 
-      // Save the admin object to the database
       await newAdmin.save();
 
-      // Send response without the password in it
       res.status(201).json({
         message: "Admin registered successfully!",
         admin: {
           name: newAdmin.name,
-          idNumber: newAdmin.idNumber,
+          email: newAdmin.email,
           futsalName: newAdmin.futsalName,
-          address: newAdmin.address,
-          dayRate: newAdmin.dayRate,
-          nightRate: newAdmin.nightRate,
-          capacity: newAdmin.capacity,
-          length: newAdmin.length,
-          width: newAdmin.width,
-          specification: newAdmin.specification,
-          fileName: newAdmin.fileName,
-          agreeTerms: newAdmin.agreeTerms,
-          email: newAdmin.email, // Do not send password
         },
       });
     } else {
       return res.status(400).json({ message: "Please upload at least one image." });
     }
   } catch (error) {
+    console.error("Error during registration:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
-
+// 🔹 Admin Login
 exports.adminLogin = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Step 1: Find the admin by email
     const admin = await Admin.findOne({ email });
+    if (!admin) return res.status(401).json({ message: "Admin not found" });
 
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
-    }
+    // Step 2: Compare the password
+    const isPasswordValid = await admin.comparePassword(password);
+    if (!isPasswordValid) return res.status(401).json({ message: "Invalid password" });
 
-    const isMatch = await admin.comparePassword(password); // assuming comparePassword is defined in your model
+    // Step 3: Generate JWT Token (Without Auth0 for now)
+    const token = jwt.sign({ adminId: admin._id, email: admin.email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    // Create a JWT token with payload
-    const payload = {
-      email: admin.email,
-      id: admin._id,
-    };
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    res.status(200).json({
-      message: "Login successful",
-      token: token,
+    return res.status(200).json({
+      message: "Admin authenticated successfully",
+      token,
+      admin: { name: admin.name, email: admin.email, futsalName: admin.futsalName },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Error during admin login:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
 
 
 
@@ -223,3 +201,8 @@ exports.deleteAdmin = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+
