@@ -73,9 +73,12 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-// 🔹 Admin Login
 exports.adminLogin = async (req, res) => {
+  console.log('Request Body:', req.body); // Log the entire body
+
   const { email, password } = req.body;
+  console.log('Email:', email);
+  console.log('Password:', password);
 
   try {
     // Step 1: Find the admin by email
@@ -101,7 +104,6 @@ exports.adminLogin = async (req, res) => {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 
