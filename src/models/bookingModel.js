@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: "users", required: true }, // Reference to the user who made the booking
-  court: { type: mongoose.Schema.Types.ObjectId, ref: "admins", required: true }, // Reference to the futsal court (Admin model)
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, // Reference to the user who made the booking
+  court: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true }, // Reference to the futsal court (Admin model)
   date: { type: String, required: true }, // YYYY-MM-DD format
   timeSlot: { type: String, required: true }, // e.g., "18:00-19:00"
   status: { 

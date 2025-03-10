@@ -1,13 +1,14 @@
 const Admin = require("../models/adminModel");
 const Image = require("../models/Image");
-const bcrypt = require('bcryptjs'); 
-const axios = require("axios");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 exports.registerAdmin = async (req, res) => {
   const {
     name,
     idNumber,
+    email,
+    password,
     futsalName,
     address,
     dayRate,
@@ -17,56 +18,79 @@ exports.registerAdmin = async (req, res) => {
     width,
     specification,
     agreeTerms,
-    email,
-    password,
   } = req.body;
 
   try {
+    // Validate required fields
+    if (
+      !name ||
+      !idNumber ||
+      !email ||
+      !password ||
+      !futsalName ||
+      !address ||
+      !dayRate ||
+      !nightRate ||
+      !capacity ||
+      !length ||
+      !width ||
+      !specification ||
+      !agreeTerms
+    ) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
     // Ensure numeric fields are valid
     const validatedCapacity = parseInt(capacity);
     const validatedLength = parseFloat(length);
     const validatedWidth = parseFloat(width);
 
-    if (req.files && req.files.length > 0) {
-      // Save images to the Image model
-      const imageUrls = [];
-      for (const file of req.files) {
-        const newImage = new Image({ url: file.path, filename: file.filename });
-        await newImage.save();
-        imageUrls.push(newImage._id);
-      }
-
-      // Create new admin (Mongoose will hash password)
-      const newAdmin = new Admin({
-        name,
-        idNumber,
-        futsalName,
-        address,
-        dayRate,
-        nightRate,
-        capacity: validatedCapacity,
-        length: validatedLength,
-        width: validatedWidth,
-        specification,
-        fileName: imageUrls,
-        agreeTerms,
-        email,
-        password, // Store plain password (it will be hashed automatically)
-      });
-
-      await newAdmin.save();
-
-      res.status(201).json({
-        message: "Admin registered successfully!",
-        admin: {
-          name: newAdmin.name,
-          email: newAdmin.email,
-          futsalName: newAdmin.futsalName,
-        },
-      });
-    } else {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "Please upload at least one image." });
     }
+
+    // Save images to the Image model
+    const imageUrls = [];
+    for (const file of req.files) {
+      const newImage = new Image({ url: file.path, filename: file.filename });
+      await newImage.save();
+      imageUrls.push(newImage._id);
+    }
+
+    // Create new admin with an empty courts array
+    const newAdmin = new Admin({
+      name,
+      email,
+      password, // Will be hashed automatically
+    
+      courts: [
+        {
+          futsalName,
+          idNumber,
+          address,
+          dayRate,
+          nightRate,
+          capacity: validatedCapacity,
+          length: validatedLength,
+          width: validatedWidth,
+          specification,
+          fileName: imageUrls,
+          agreeTerms,
+          isVerified: false,
+        },
+      ],
+    });
+
+    await newAdmin.save();
+
+    res.status(201).json({
+      message: "Admin registered successfully!",
+      admin: {
+        name: newAdmin.name,
+        email: newAdmin.email,
+        futsalName: newAdmin.courts[0].futsalName,
+      },
+    });
   } catch (error) {
     console.error("Error during registration:", error);
     res.status(500).json({ error: error.message });
@@ -106,8 +130,74 @@ exports.adminLogin = async (req, res) => {
 };
 
 
+exports.addCourt = async (req, res) => {
+  try {
+    const { futsalName,idNumber, address, dayRate, nightRate, capacity, length, width, specification,agreeTerms } = req.body;
 
+    const validatedCapacity = parseInt(capacity);
+    const validatedLength = parseFloat(length);
+    const validatedWidth = parseFloat(width);
 
+    if (req.files && req.files.length > 0) {
+      // Save images to the Image model
+      const imageUrls = [];
+      for (const file of req.files) {
+        const newImage = new Image({ url: file.path, filename: file.filename });
+        await newImage.save();
+        imageUrls.push(newImage._id);
+      }
+    
+    // Get the logged-in admin's ID (from the token or session)
+    const adminId = req.user.adminId;
+
+    const admin = await Admin.findById(adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Add the new court to the admin's courts array
+    const newCourt = {
+      futsalName,
+      idNumber,
+      address,
+      dayRate,
+      nightRate,
+      capacity: validatedCapacity,
+      length: validatedLength,
+      width: validatedWidth,
+      specification,
+      fileName: imageUrls,
+      agreeTerms,
+      isVerified: false,
+    };
+
+    await admin.addCourt(newCourt);
+
+    res.status(201).json({ message: "Court added successfully", courts: admin.courts });
+  }
+  } catch (error) {
+    console.error("Error adding court:", error);
+    res.status(500).json({ message: "Server error", error: error.stack });
+  }
+};
+
+exports.getCourtsByAdminId = async (req, res) => {
+  try {
+    const adminId = req.user.adminId;  // Assuming adminId is in the token payload
+    const admin = await Admin.findById(adminId).select("courts");  // Select only the courts field
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Return the courts associated with this admin
+    res.status(200).json({ courts: admin.courts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
 // GET request to fetch all admins
 exports.getAllAdmins = async (req, res) => {

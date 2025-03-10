@@ -1,6 +1,6 @@
 const Booking = require("../models/bookingModel");
 const mongoose = require('mongoose');
-const User = require('../models/userModel');  
+const User = require('../models/userModel');
 const Admin = require('../models/adminModel'); 
 
 // Create a new booking
@@ -119,18 +119,20 @@ exports.deleteBooking = async (req, res) => {
 
 exports.getBookingsForAdmin = async (req, res) => {
   try {
-    // Ensure adminId is an ObjectId
-    const adminId = mongoose.Types.ObjectId(req.user.id);  // Convert the admin ID from JWT to ObjectId
+    console.log(req.user);  // Check if `adminId` exists here
 
-    // Validate admin ID
-    if (!mongoose.Types.ObjectId.isValid(adminId)) {
+    // Ensure adminId is an ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.user.adminId)) {
       return res.status(400).json({ message: "Invalid admin ID format" });
     }
 
-    // Fetch bookings where the "court" matches the admin's ID
+    const adminId = new mongoose.Types.ObjectId(req.user.adminId);
+    console.log(adminId); // Log the adminId
+
+    // Find bookings where the court (admin) matches the logged-in admin's id
     const bookings = await Booking.find({ court: adminId })
-      .populate("user", "username email")  // Populate user details (reference is `user`)
-      .populate("court", "futsalName address"); // Populate court details (reference is `court`)
+      .populate("user", "username email")  // Populate user details
+      .populate("court", "futsalName address"); // Populate court details
 
     if (!bookings.length) {
       return res.status(404).json({ message: "No bookings found for this admin." });
@@ -142,4 +144,3 @@ exports.getBookingsForAdmin = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.stack });
   }
 };
-

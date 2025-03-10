@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/upload");
-const checkJwt = require("../middleware/checkJwt");
+const checkJwt = require('../middleware/checkJwt');
+const verifyToken = require('../middleware/verifyToken');
 const {
   registerAdmin,
   getAllAdmins,
@@ -9,12 +10,15 @@ const {
   updateAdmin,
   deleteAdmin,
   adminLogin,
+  addCourt,
+  getCourtsByAdminId,
 } = require("../controllers/adminController");
 
 router.post("/register", upload,registerAdmin);
 console.log("Request received");
 
-
+router.post("/addCourt",upload,verifyToken,addCourt);
+router.get("/getCourts",verifyToken,getCourtsByAdminId);
 router.get("/", getAllAdmins);
 router.post("/login", adminLogin);
 router.get("/:id", getAdminById);
