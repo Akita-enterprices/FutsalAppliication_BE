@@ -10,7 +10,8 @@ const config = require("./config/config");
 const errorHandler = require("./utils/errorHandler");
 const cors = require("cors");
 const availableRoutes = require("./routes/availableRoutes");
-
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocs = require("./config/swaggerDocs").swaggerDocs;
 dotenv.config();
 const app = express();
 
@@ -40,6 +41,8 @@ mongoose
 
 // app.use(express.json());
 
+// Use Swagger UI for API documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/bookings", bookingRoutes);
