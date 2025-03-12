@@ -1,4 +1,4 @@
-const Admin = require("../models/adminModel");
+const { Admin, Court } = require("../models/adminModel");
 const Image = require("../models/Image");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -9,6 +9,7 @@ exports.registerAdmin = async (req, res) => {
     idNumber,
     email,
     password,
+    nicOrPassport,
     futsalName,
     address,
     dayRate,
@@ -21,12 +22,16 @@ exports.registerAdmin = async (req, res) => {
   } = req.body;
 
   try {
+    // Convert agreeTerms to Boolean
+    const agreeTermsBoolean = agreeTerms === "true" || agreeTerms === true;
+
     // Validate required fields
     if (
       !name ||
       !idNumber ||
       !email ||
       !password ||
+      !nicOrPassport||
       !futsalName ||
       !address ||
       !dayRate ||
@@ -35,17 +40,18 @@ exports.registerAdmin = async (req, res) => {
       !length ||
       !width ||
       !specification ||
-      !agreeTerms
+      !agreeTermsBoolean
     ) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
     // Ensure numeric fields are valid
-    const validatedCapacity = parseInt(capacity);
-    const validatedLength = parseFloat(length);
-    const validatedWidth = parseFloat(width);
+    const validatedCapacity = isNaN(parseInt(capacity)) ? 0 : parseInt(capacity);
+    const validatedLength = isNaN(parseFloat(length)) ? 0 : parseFloat(length);
+    const validatedWidth = isNaN(parseFloat(width)) ? 0 : parseFloat(width);
 
-    if (!req.files || req.files.length === 0) {
+    // Check if images are uploaded
+    if (!req.files || (Array.isArray(req.files) && req.files.length === 0)) {
       return res.status(400).json({ message: "Please upload at least one image." });
     }
 
@@ -57,12 +63,12 @@ exports.registerAdmin = async (req, res) => {
       imageUrls.push(newImage._id);
     }
 
-    // Create new admin with an empty courts array
+    // Create new admin with courts array
     const newAdmin = new Admin({
       name,
       email,
-      password, // Will be hashed automatically
-    
+      password, // Auto-hashed by the schema
+      nicOrPassport,
       courts: [
         {
           futsalName,
@@ -75,7 +81,7 @@ exports.registerAdmin = async (req, res) => {
           width: validatedWidth,
           specification,
           fileName: imageUrls,
-          agreeTerms,
+          agreeTerms: agreeTermsBoolean,
           isVerified: false,
         },
       ],
@@ -88,6 +94,7 @@ exports.registerAdmin = async (req, res) => {
       admin: {
         name: newAdmin.name,
         email: newAdmin.email,
+        nicOrPassport: newAdmin.nicOrPassport,
         futsalName: newAdmin.courts[0].futsalName,
       },
     });
@@ -97,23 +104,27 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-exports.adminLogin = async (req, res) => {
-  console.log('Request Body:', req.body); // Log the entire body
 
-  const { email, password } = req.body;
-  console.log('Email:', email);
-  console.log('Password:', password);
+exports.adminLogin = async (req, res) => {
+  console.log("Request Body:", req.body);
+
+  const { username, password } = req.body; // Change email to username (email or NIC/Passport)
+  console.log("Username:", username);
+  console.log("Password:", password);
 
   try {
-    // Step 1: Find the admin by email
-    const admin = await Admin.findOne({ email });
+    // Step 1: Find the admin by email OR NIC/Passport
+    const admin = await Admin.findOne({
+      $or: [{ email: username }, { nicOrPassport: username }],
+    });
+
     if (!admin) return res.status(401).json({ message: "Admin not found" });
 
     // Step 2: Compare the password
     const isPasswordValid = await admin.comparePassword(password);
     if (!isPasswordValid) return res.status(401).json({ message: "Invalid password" });
 
-    // Step 3: Generate JWT Token (Without Auth0 for now)
+    // Step 3: Generate JWT Token
     const token = jwt.sign({ adminId: admin._id, email: admin.email }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
@@ -128,6 +139,7 @@ exports.adminLogin = async (req, res) => {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
 
 
 exports.addCourt = async (req, res) => {
@@ -199,30 +211,40 @@ exports.getCourtsByAdminId = async (req, res) => {
   }
 };
 
-// GET request to fetch all admins
 exports.getAllAdmins = async (req, res) => {
   try {
-    const admins = await Admin.find().populate("fileName");
+    const admins = await Admin.find().populate({
+      path: "courts.fileName", // Populate fileName inside courts
+      model: "Image", // Ensure it references the Image model
+    });
+
     res.json(admins);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+
 // GET request to fetch a single admin by ID
 exports.getAdminById = async (req, res) => {
   const adminId = req.params.id;
 
   try {
-    const admin = await Admin.findById(adminId).populate("fileName");
+    const admin = await Admin.findById(adminId).populate({
+      path: "courts.fileName", // Populate fileName inside courts
+      model: "Image",
+    });
+
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
+    
     res.json(admin);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // PUT request to update an admin by ID
 exports.updateAdmin = async (req, res) => {

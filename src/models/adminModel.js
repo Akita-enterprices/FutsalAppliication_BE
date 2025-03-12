@@ -35,6 +35,12 @@ const adminSchema = new mongoose.Schema({
     required: true,
     minlength: [8, "Password should be at least 8 characters long"],
   },
+  nicOrPassport: {
+    type: String,
+    required: true,
+    unique: true,
+    match: [/^[a-zA-Z0-9]+$/, "Please provide a valid NIC or Passport number"],
+  },
   courts: [courtSchema], // Keeping all court-related fields inside the courts array
   // isVerified: { type: Boolean, default: false }, // Used to verify the admin
 });
@@ -57,5 +63,9 @@ adminSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+const Court = mongoose.model("Court", courtSchema);
+
+
+
 const Admin = mongoose.model("Admin", adminSchema);
-module.exports = Admin;
+module.exports = { Admin, Court };
