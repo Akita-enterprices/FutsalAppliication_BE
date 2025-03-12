@@ -1,5 +1,6 @@
 const swaggerJsDoc = require("swagger-jsdoc");
-const swaggerUi = require("swagger-ui-express");
+// const swaggerUi = require("swagger-ui-express");
+const path = require("path");
 
 const swaggerOptions = {
   definition: {
@@ -15,10 +16,13 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: ["./swagger/*.js"], // Importing documentation from another folder
+  apis: [
+    path.join(__dirname, "../routes/*.js"),
+    path.join(__dirname, "../swagger/*.js"),
+  ], // Importing documentation from another folder
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 console.log("Swagger Docs available at: http://localhost:4000/api-docs");
 
-module.exports = { swaggerUi, swaggerDocs };
+module.exports = { swaggerDocs };
