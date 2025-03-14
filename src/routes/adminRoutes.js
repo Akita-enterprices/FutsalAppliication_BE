@@ -12,6 +12,8 @@ const {
   adminLogin,
   addCourt,
   getCourtsByAdminId,
+  changeAdminPassword,
+  updateCourtById,
 } = require("../controllers/adminController");
 
 router.post("/register", upload,registerAdmin);
@@ -22,8 +24,10 @@ router.get("/getCourts",verifyToken,getCourtsByAdminId);
 router.get("/", getAllAdmins);
 router.post("/login", adminLogin);
 router.get("/:id", getAdminById);
-router.put("/:id", updateAdmin);
+router.put("/update", updateAdmin);
 router.delete("/:id", deleteAdmin);
+router.put("/changePassword", changeAdminPassword);
+router.put("/updateCourt", updateCourtById);
 
 router.get("/protected", checkJwt, (req, res) => {
   res.status(200).json({
