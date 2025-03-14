@@ -54,13 +54,16 @@ adminSchema.methods.addCourt = async function (courtDetails) {
 // Hash password before saving
 adminSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 10);
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+console.log("ps"+this.password);
+
   next();
 });
 
-// Method to compare password
+// Method to compare passwords
 adminSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 const Court = mongoose.model("Court", courtSchema);
