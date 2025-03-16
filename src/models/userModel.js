@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
-    username: {
+    name: {
       type: String,
       required: true,
       trim: true,
@@ -14,29 +14,30 @@ const userSchema = new mongoose.Schema(
       unique: true,
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
+    phone: {
+      type: String,
+      required: true,
+      unique: true,
+      match: [/^\d{10,15}$/, "Please enter a valid phone number"],
+    },
     password: {
       type: String,
       required: true,
       minlength: 8,
-    },
-    phone: {
-      type: String,
-      required: true,
-      match: [/^\d{10,15}$/, "Please enter a valid phone number"],
-    },
-    auth0UserId: {
-      type: String,
-      required: true,
-      unique: true,
     },
     nicOrPassport: {
       type: String,
       required: true,
       unique: true,
     },
+    address: {
+      type: String,
+      required: true,
+      trim: true,
+    },
   },
   {
-    timestamps: true,
+    timestamps: true, // Adds createdAt and updatedAt fields
   }
 );
 

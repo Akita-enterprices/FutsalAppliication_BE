@@ -1,19 +1,7 @@
-// const express = require("express");
-// const { signup, login, me } = require("../controllers/authController");
-// const verifyToken = require("../middleware/auth");
-
-// const router = express.Router();
-
-// router.post("/signup", signup);
-// router.post("/login", login);
-// router.get("/me", verifyToken, me);
-
-// module.exports = router;
-
 const express = require("express");
 const {
   signup,
-  login,
+  userLogin,
   me,
   getAllUsers,
   getUserById,
@@ -26,13 +14,13 @@ const router = express.Router();
 
 // Authentication Routes
 router.post("/signup", signup);
-router.post("/login", login);
+router.post("/userLogin", userLogin);
 router.get("/me", verifyToken, me);
 
 // User Management Routes
-router.get("/users", getAllUsers);
+router.get("/getAllUsers", getAllUsers);
 router.get("/users/:id", getUserById);
-router.put("/users/:id",updateUser);
+router.put("/updateUser",updateUser);
 router.delete("/users/:id",deleteUser);
 
 module.exports = router;
