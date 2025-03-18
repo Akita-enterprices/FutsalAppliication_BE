@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    isVerified: {
+      type: Boolean,
+      default: false, // Initially false, will be updated once verified
+    }
   },
   {
     timestamps: true, // Adds createdAt and updatedAt fields
