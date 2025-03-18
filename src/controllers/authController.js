@@ -2,12 +2,43 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const User = require("../models/userModel");
 const config = require("../config/config");
-
+const sendEmail = require("../utils/email"); 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "1h" });
 };
 
 // Signup
+// exports.signup = async (req, res) => {
+//   const { name, email, password, phone, nicOrPassport, address } = req.body;
+
+//   try {
+//     // Check if user already exists
+//     const userExists = await User.findOne({ email });
+//     if (userExists) {
+//       return res.status(400).json({ message: "User already exists" });
+//     }
+
+//     // Create new user
+//     const newUser = new User({ name, email, password, phone, nicOrPassport, address });
+//     const user = await newUser.save();
+
+//     if (user) {
+//       return res.status(201).json({
+//         _id: user._id,
+//         name: user.name,
+//         email: user.email,
+//         nicOrPassport:user.nicOrPassport,
+//         phone: user.phone,
+//         address: user.address,
+//       });
+//     } else {
+//       return res.status(400).json({ message: "Failed to create user" });
+//     }
+//   } catch (error) {
+//     console.error("Signup Error:", error);
+//     return res.status(500).json({ message: "Server error during signup" });
+//   }
+// };
 exports.signup = async (req, res) => {
   const { name, email, password, phone, nicOrPassport, address } = req.body;
 
@@ -19,17 +50,34 @@ exports.signup = async (req, res) => {
     }
 
     // Create new user
-    const newUser = new User({ name, email, password, phone, nicOrPassport, address });
+    const newUser = new User({ name, email, password, phone, nicOrPassport, address, isVerified: false });
     const user = await newUser.save();
 
     if (user) {
+      // Generate email verification token (valid for 1 hour)
+      const verificationToken = jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+      // Create the verification URL (you will need to have this route in the frontend)
+      const verificationLink = `${process.env.CLIENT_URL}/api/auth/verify-email?token=${verificationToken}`;
+
+      // Send verification email to the user
+      const emailContent = `
+        <h2>Welcome to Our Futsal Application Plattform, ${user.name}!</h2>
+        <p>Thank you for registering. Please verify your email address by clicking the link below:</p>
+        <a href="${verificationLink}" style="color: blue; font-size: 16px;">Verify Email</a>
+        <p>This link will expire in 1 hour.</p>
+      `;
+
+      await sendEmail(user.email, "Email Verification", emailContent);
+
       return res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
-        nicOrPassport:user.nicOrPassport,
+        nicOrPassport: user.nicOrPassport,
         phone: user.phone,
         address: user.address,
+        message: "Registration successful! Please check your email to verify your account.",
       });
     } else {
       return res.status(400).json({ message: "Failed to create user" });
@@ -40,6 +88,34 @@ exports.signup = async (req, res) => {
   }
 };
 
+exports.verifyEmail = async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ message: "Invalid or missing token" });
+  }
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Find the user by email
+    const user = await User.findOne({ email: decoded.email });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    // Update the user's isVerified field to true
+    user.isVerified = true;
+    await user.save();
+
+    return res.status(200).json({ message: "Email verified successfully! You can now log in." });
+  } catch (error) {
+    console.error("Email Verification Error:", error);
+    return res.status(400).json({ message: "Invalid or expired token" });
+  }
+};
 
 // Login
 exports.userLogin = async (req, res) => {
