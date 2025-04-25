@@ -1,7 +1,9 @@
-const { Admin } = require("../models/adminModel");
+const { Admin, Court } = require("../models/adminModel");
 const Image = require("../models/Image");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const sendEmail = require("../utils/email");
 
 exports.registerAdmin = async (req, res) => {
   const {
@@ -19,6 +21,7 @@ exports.registerAdmin = async (req, res) => {
     width,
     specification,
     agreeTerms,
+    sports,
   } = req.body;
 
   try {
@@ -28,8 +31,9 @@ exports.registerAdmin = async (req, res) => {
     // Validate required fields
     if (
       !name || !idNumber || !email || !password || !nicOrPassport ||
-      !futsalName || !address || !dayRate || !nightRate || 
-      !capacity || !length || !width || !specification || !agreeTermsBoolean
+      !futsalName || !address || !dayRate || !nightRate ||
+      !capacity || !length || !width || !specification || !agreeTermsBoolean ||
+      !sports || !Array.isArray(sports) || sports.length === 0
     ) {
       return res.status(400).json({ message: "All fields are required." });
     }
@@ -39,19 +43,30 @@ exports.registerAdmin = async (req, res) => {
     const validatedLength = isNaN(parseFloat(length)) ? 0 : parseFloat(length);
     const validatedWidth = isNaN(parseFloat(width)) ? 0 : parseFloat(width);
 
-       // Check if images are uploaded
-       if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ message: "Please upload at least one image." });
-      }
-  
-      // Save images to the Image model
-      const imageUrls = await Promise.all(
-        req.files.map(async (file) => {
-          const newImage = new Image({ url: file.path, filename: file.filename });
-          await newImage.save();
-          return newImage._id;
-        })
-      );
+    const validSports = ['cricket', 'football', 'tennis'];
+    const invalidSports = sports.filter((s) => !validSports.includes(s));
+    if (invalidSports.length > 0) {
+      return res.status(400).json({ message: `Invalid sport(s): ${invalidSports.join(", ")}` });
+    }
+
+    // Check if images are uploaded
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "Please upload at least one image." });
+    }
+
+    // Save images to the Image model
+    const imageUrls = await Promise.all(
+      req.files.map(async (file) => {
+        const newImage = new Image({ url: file.path, filename: file.filename });
+        await newImage.save();
+        return newImage._id;
+      })
+    );
+
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    console.log("Generated Verification Token:", verificationToken);
+
     // Create new admin with courts array
     const newAdmin = new Admin({
       name,
@@ -69,22 +84,64 @@ exports.registerAdmin = async (req, res) => {
           length: validatedLength,
           width: validatedWidth,
           specification,
-          fileName: imageUrls, 
+          fileName: imageUrls,
+          sports,
           agreeTerms: agreeTermsBoolean,
           isVerified: false,
+          verificationToken,
         },
       ],
     });
 
+    console.log("Before Saving Admin:", newAdmin);
     await newAdmin.save();
 
+    console.log("After Saving Admin:", await Admin.findById(newAdmin._id));
+
+    // Send verification email to Super Admin
+    const verificationLink = `${process.env.CLIENT_URL}/admin/verify?token=${verificationToken}`;
+
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
+        <h2 style="color: #333;">New Admin Registration</h2>
+        <p style="font-size: 16px; color: #555;">
+          A new admin has registered for the futsal booking system. Please review and verify their registration by clicking the button below:
+        </p>
+        <div style="margin: 20px 0;">
+          <a href="${verificationLink}" 
+             style="background-color: #28a745; color: white; padding: 12px 20px; text-decoration: none; font-size: 16px; border-radius: 5px;">
+             Verify Admin
+          </a>
+        </div>
+        <p style="color: #777;">If you did not request this, you can ignore this email.</p>
+      </div>
+    `;
+
+    await sendEmail(process.env.SUPER_ADMIN_EMAIL, "Verify New Admin", emailContent);
+
+    const adminEmailContent = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
+      <h2 style="color: #333;">Registration Successful</h2>
+      <p style="font-size: 16px; color: #555;">
+        Dear ${name}, your registration for ${futsalName} has been received.
+      </p>
+      <p style="font-size: 16px; color: #555;">
+        Your account is currently pending verification by the Super Admin. You will receive a notification once your account has been approved.
+      </p>
+      <p style="color: #777;">If you have any questions, please contact our support team.</p>
+    </div>
+  `;
+
+    await sendEmail(email, "Futsal Booking System - Registration Received", adminEmailContent);
+
     res.status(201).json({
-      message: "Admin registered successfully!",
+      message: "Admin registered successfully! Pending Super Admin verification.",
       admin: {
         name: newAdmin.name,
         email: newAdmin.email,
         nicOrPassport: newAdmin.nicOrPassport,
         futsalName: newAdmin.courts[0].futsalName,
+        verificationToken: newAdmin.courts[0].verificationToken,
       },
     });
   } catch (error) {
@@ -92,6 +149,7 @@ exports.registerAdmin = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // Admin Login
 exports.adminLogin = async (req, res) => {
@@ -108,6 +166,14 @@ exports.adminLogin = async (req, res) => {
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+
+    // Check if any of the admin's courts are verified
+    const hasVerifiedCourt = admin.courts.some(court => court.isVerified === true);
+
+    if (!hasVerifiedCourt) {
+      return res.status(403).json({ message: "Your account is pending verification by the Super Admin." });
+    }
+
 
     // Compare the password
     const isPasswordValid = await bcrypt.compare(password, admin.password);
@@ -191,29 +257,51 @@ exports.changeAdminPassword = async (req, res) => {
 
 exports.addCourt = async (req, res) => {
   try {
-    const { futsalName,idNumber, address, dayRate, nightRate, capacity, length, width, specification,agreeTerms } = req.body;
+    const { futsalName, idNumber, address, dayRate, nightRate, capacity, length, width, specification, agreeTerms, sports, } = req.body;
 
     const validatedCapacity = parseInt(capacity);
     const validatedLength = parseFloat(length);
     const validatedWidth = parseFloat(width);
 
+    if (!futsalName || !idNumber || !address || !dayRate || !nightRate || !capacity || !length || !width || !specification || !agreeTerms || !sports) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+    const sportsArray = Array.isArray(sports)
+      ? sports
+      : typeof sports === "string"
+        ? sports.split(',').map(s => s.trim().toLowerCase())
+        : [];
+
+    const allowedSports = ['cricket', 'football', 'tennis'];
+    const invalidSports = sportsArray.filter(s => !allowedSports.includes(s));
+
+    if (invalidSports.length > 0) {
+      return res.status(400).json({ message: `Invalid sport(s): ${invalidSports.join(', ')}` });
+    }
+
+    let imageUrls = [];
     if (req.files && req.files.length > 0) {
-      // Save images to the Image model
-      const imageUrls = [];
-      for (const file of req.files) {
-        const newImage = new Image({ url: file.path, filename: file.filename });
-        await newImage.save();
-        imageUrls.push(newImage._id);
-      }
-    
+      imageUrls = await Promise.all(
+        req.files.map(async (file) => {
+          const newImage = new Image({ url: file.path, filename: file.filename });
+          await newImage.save();
+          return newImage._id;
+        })
+      );
+    } else {
+      return res.status(400).json({ message: "Please upload at least one image." });
+    }
+
     // Get the logged-in admin's ID (from the token or session)
     const adminId = req.user.adminId;
-
     const admin = await Admin.findById(adminId);
 
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
+
+    // Generate a verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
 
     // Add the new court to the admin's courts array
     const newCourt = {
@@ -229,17 +317,42 @@ exports.addCourt = async (req, res) => {
       fileName: imageUrls,
       agreeTerms,
       isVerified: false,
+      sports: sportsArray,
+      verificationToken, // Store the token for verification
     };
 
-    await admin.addCourt(newCourt);
+    admin.courts.push(newCourt);
+    await admin.save();
 
-    res.status(201).json({ message: "Court added successfully", courts: admin.courts });
-  }
+    // Send verification email to Super Admin
+    const verificationLink = `${process.env.CLIENT_URL}/admin/verify-court?token=${verificationToken}`;
+
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
+        <h2 style="color: #333;">New Court Registration</h2>
+        <p style="font-size: 16px; color: #555;">
+          A new futsal court (${futsalName}) has been added by ${admin.name}. Please review and verify the court registration by clicking the button below:
+        </p>
+        <div style="margin: 20px 0;">
+          <a href="${verificationLink}" 
+             style="background-color: #28a745; color: white; padding: 12px 20px; text-decoration: none; font-size: 16px; border-radius: 5px;">
+             Verify Court
+          </a>
+        </div>
+        <p style="color: #777;">If you did not request this, you can ignore this email.</p>
+      </div>
+    `;
+
+    await sendEmail(process.env.SUPER_ADMIN_EMAIL, "Verify New Court", emailContent);
+
+    res.status(201).json({ message: "Court added successfully. Pending Super Admin verification.", courts: admin.courts });
   } catch (error) {
     console.error("Error adding court:", error);
     res.status(500).json({ message: "Server error", error: error.stack });
   }
 };
+
+
 
 exports.getCourtsByAdminId = async (req, res) => {
   try {
@@ -285,7 +398,7 @@ exports.getAdminById = async (req, res) => {
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
-    
+
     res.json(admin);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -295,51 +408,51 @@ exports.getAdminById = async (req, res) => {
 
 // PUT request to update an admin by ID
 exports.updateAdmin = async (req, res) => {
-    try {
-        // Extract the token from headers
-        const token = req.headers.authorization?.split(" ")[1]; // Format: "Bearer TOKEN"
-        if (!token) {
-            return res.status(401).json({ message: "Unauthorized: No token provided" });
-        }
-
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const adminId = decoded.adminId; // Assuming `adminId` is stored in the token payload
-
-        if (!adminId) {
-            return res.status(403).json({ message: "Forbidden: Invalid token" });
-        }
-
-        const { name, email } = req.body;
-
-        // Find the admin by ID
-        let admin = await Admin.findById(adminId);
-        if (!admin) {
-            return res.status(404).json({ message: "Admin not found" });
-        }
-
-        // Check if the email is being updated and ensure uniqueness
-        if (email && email !== admin.email) {
-            const emailExists = await Admin.findOne({ email });
-            if (emailExists) {
-                return res.status(400).json({ message: "Email is already in use" });
-            }
-        }
-
-        // Update only name and email
-        admin.name = name || admin.name;
-        admin.email = email || admin.email;
-
-        await admin.save();
-
-        res.status(200).json({
-            message: "Admin updated successfully",
-            admin: { name: admin.name, email: admin.email },
-        });
-
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+  try {
+    // Extract the token from headers
+    const token = req.headers.authorization?.split(" ")[1]; // Format: "Bearer TOKEN"
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized: No token provided" });
     }
+
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const adminId = decoded.adminId; // Assuming `adminId` is stored in the token payload
+
+    if (!adminId) {
+      return res.status(403).json({ message: "Forbidden: Invalid token" });
+    }
+
+    const { name, email } = req.body;
+
+    // Find the admin by ID
+    let admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Check if the email is being updated and ensure uniqueness
+    if (email && email !== admin.email) {
+      const emailExists = await Admin.findOne({ email });
+      if (emailExists) {
+        return res.status(400).json({ message: "Email is already in use" });
+      }
+    }
+
+    // Update only name and email
+    admin.name = name || admin.name;
+    admin.email = email || admin.email;
+
+    await admin.save();
+
+    res.status(200).json({
+      message: "Admin updated successfully",
+      admin: { name: admin.name, email: admin.email },
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
 };
 
 
@@ -366,64 +479,69 @@ exports.deleteAdmin = async (req, res) => {
 };
 
 
-
 exports.updateCourtById = async (req, res) => {
-    try {
-        const token = req.headers.authorization?.split(" ")[1];
-        if (!token) {
-            return res.status(401).json({ message: "Unauthorized: No token provided" });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const adminId = decoded.adminId;
-
-        if (!adminId) {
-            return res.status(403).json({ message: "Forbidden: Invalid token" });
-        }
-
-        const { courtId } = req.params;
-        const updateData = req.body;
-
-        // Prevent updating `idNumber`
-        if (updateData.idNumber) {
-            return res.status(400).json({ message: "Updating 'idNumber' is not allowed" });
-        }
-
-        // Find the admin
-        const admin = await Admin.findById(adminId);
-        if (!admin) {
-            return res.status(404).json({ message: "Admin not found" });
-        }
-
-        // Find the court in the admin's courts array
-        const court = admin.courts.id(courtId);
-        if (!court) {
-            return res.status(404).json({ message: "Court not found or unauthorized" });
-        }
-
-        // Image update logic
-        if (updateData.imageIndex !== undefined && updateData.newImage) {
-            const imageIndex = parseInt(updateData.imageIndex);
-            if (imageIndex < 0 || imageIndex >= court.fileName.length) {
-                return res.status(400).json({ message: "Invalid image index" });
-            }
-            court.fileName[imageIndex] = updateData.newImage;
-        }
-
-        // Other court field updates
-        Object.keys(updateData).forEach((key) => {
-            if (key !== "imageIndex" && key !== "newImage") {
-                court[key] = updateData[key];
-            }
-        });
-
-        await admin.save();
-
-        res.status(200).json({ message: "Court updated successfully", updatedCourt: court });
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+  try {
+    // Validate token
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized: No token provided" });
     }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const adminId = decoded.adminId;
+
+    if (!adminId) {
+      return res.status(403).json({ message: "Forbidden: Invalid token" });
+    }
+
+    // Get court ID from URL params
+    const { courtId } = req.params;
+    const updateData = req.body;
+
+    // Prevent updating `idNumber`
+    if (updateData.idNumber) {
+      return res.status(400).json({ message: "Updating 'idNumber' is not allowed" });
+    }
+
+    // ✅ Find the Admin who owns this court
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // ✅ Find the specific court in the admin's courts array
+    const court = admin.courts.find((c) => c._id.toString() === courtId);
+    if (!court) {
+      return res.status(404).json({ message: "Court not found or unauthorized" });
+    }
+
+    // ✅ Handle updating images by image ID
+    if (updateData.images && Array.isArray(updateData.images)) {
+      for (const { imageId, newImage } of updateData.images) {
+        const imageIndex = court.fileName.findIndex((img) => img._id.toString() === imageId);
+        if (imageIndex !== -1) {
+          court.fileName[imageIndex] = newImage;
+        }
+      }
+    }
+
+    // ✅ Update other court fields (excluding `idNumber` and `images`)
+    Object.keys(updateData).forEach((key) => {
+      if (key !== "idNumber" && key !== "images") {
+        court[key] = updateData[key];
+      }
+    });
+
+    await admin.save();
+
+    res.status(200).json({ message: "Court updated successfully", updatedCourt: court });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
 };
+
+
+
 
 
 

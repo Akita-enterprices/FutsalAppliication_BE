@@ -9,8 +9,6 @@
  * @swagger
  * /api/admin/register:
  *   post:
- *     summary: Register a new admin
- *     description: Registers a new admin with court details and uploads images.
  *     tags: 
  *       - Admin
  *     requestBody:
@@ -92,7 +90,7 @@
  *                 description: Images of the futsal court.
  *     responses:
  *       201:
- *         description: Admin registered successfully.
+ *         description: Admin registered successfully. Super Admin and Admin receive verification emails.
  *         content:
  *           application/json:
  *             schema:
@@ -110,6 +108,8 @@
  *                     nicOrPassport:
  *                       type: string
  *                     futsalName:
+ *                       type: string
+ *                     verificationToken:
  *                       type: string
  *       400:
  *         description: Bad request, missing required fields or invalid input.
@@ -511,106 +511,89 @@
  *         description: Internal server error
  */
 
-// /**
-//  * @swagger
-//  * /api/admin/updateCourt:
-//  *   put:
-//  *     summary: Update court details by ID
-//  *     description: Allows an authenticated admin to update the details of a specific court, excluding the `idNumber` and managing image updates.
-//  *     tags:
-//  *       - Admin
-//  *     security:
-//  *       - BearerAuth: []
-//  *     parameters:
-//  *       - name: courtId
-//  *         in: path
-//  *         required: true
-//  *         description: The unique identifier of the court to update.
-//  *         schema:
-//  *           type: string
-//  *     requestBody:
-//  *       required: true
-//  *       content:
-//  *         application/json:
-//  *           schema:
-//  *             type: object
-//  *             properties:
-//  *               idNumber:
-//  *                 type: string
-//  *                 description: The ID number of the court (this field cannot be updated).
-//  *               imageIndex:
-//  *                 type: integer
-//  *                 description: The index of the image to update (if updating an image).
-//  *               newImage:
-//  *                 type: string
-//  *                 description: The new image URL to update (if updating an image).
-//  *               otherFields:
-//  *                 type: object
-//  *                 additionalProperties:
-//  *                   type: string
-//  *                   description: Other court properties to update (excluding `idNumber`, `imageIndex`, and `newImage`).
-//  *     responses:
-//  *       200:
-//  *         description: Court updated successfully
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Court updated successfully"
-//  *                 updatedCourt:
-//  *                   type: object
-//  *                   properties:
-//  *                     _id:
-//  *                       type: string
-//  *                       example: "603c72ef6a4e3d1f8428b5d9"
-//  *                     fileName:
-//  *                       type: array
-//  *                       items:
-//  *                         type: string
-//  *                         example: "courtImage1.jpg"
-//  *       400:
-//  *         description: Bad request – Invalid image index or attempting to update restricted fields
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Updating 'idNumber' is not allowed"
-//  *       401:
-//  *         description: Unauthorized – No token provided
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Unauthorized: No token provided"
-//  *       403:
-//  *         description: Forbidden – Invalid token
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Forbidden: Invalid token"
-//  *       404:
-//  *         description: Court or admin not found
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Court not found or unauthorized"
-//  *       500:
-//  *         description: Internal server error
-//  */
+  /**
+   * @swagger
+   * /api/updateCourt/{courtId}:
+   *   put:
+   *     summary: Update court details by ID
+   *     description: Allows an authenticated admin to update a futsal court's details, excluding `idNumber`.
+   *     tags: [Admin]
+   *     security:
+   *       - BearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: courtId
+   *         required: true
+   *         description: The ID of the court to update.
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               futsalName:
+   *                 type: string
+   *                 example: "Elite Futsal Arena"
+   *               address:
+   *                 type: string
+   *                 example: "456 New Street, City Center"
+   *               dayRate:
+   *                 type: number
+   *                 example: 2800
+   *               nightRate:
+   *                 type: number
+   *                 example: 3500
+   *               capacity:
+   *                 type: number
+   *                 example: 20
+   *               length:
+   *                 type: number
+   *                 example: 12
+   *               width:
+   *                 type: number
+   *                 example: 12
+   *               specification:
+   *                 type: string
+   *                 example: "New synthetic turf with floodlights"
+   *               agreeTerms:
+   *                 type: boolean
+   *                 example: true
+   *               images:
+   *                 type: array
+   *                 items:
+   *                   type: object
+   *                   properties:
+   *                     imageId:
+   *                       type: string
+   *                       example: "67d99c4a92cbc79a190ec305"
+   *                     newImage:
+   *                       type: string
+   *                       example: "https://res.cloudinary.com/demo/image/upload/v1234567890/newimage1.jpg"
+   *     responses:
+   *       200:
+   *         description: Court updated successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 message:
+   *                   type: string
+   *                   example: "Court updated successfully"
+   *                 updatedCourt:
+   *                   type: object
+   *       400:
+   *         description: Invalid request (e.g., trying to update `idNumber` or incorrect image index)
+   *       401:
+   *         description: Unauthorized - No token provided
+   *       403:
+   *         description: Forbidden - Admin does not own the court
+   *       404:
+   *         description: Court or Admin not found
+   *       500:
+   *         description: Server error
+   */
+
