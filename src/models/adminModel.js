@@ -18,8 +18,14 @@ const courtSchema = new mongoose.Schema({
       required: true,
     }
   ],
+  sports: {
+    type: [String],
+    enum: ['cricket', 'football', 'tennis'],
+    required: true,
+  },
   agreeTerms: { type: Boolean, required: true },
-  isVerified: { type: Boolean, default: false }, // Used to mark court as verified
+  isVerified: { type: Boolean, default: false },
+  verificationToken: {  type: String},
 });
 
 const adminSchema = new mongoose.Schema({
