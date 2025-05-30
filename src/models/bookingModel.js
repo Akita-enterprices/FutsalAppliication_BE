@@ -15,6 +15,11 @@ const bookingSchema = new mongoose.Schema({
     enum: ["pending", "paid"], 
     default: "pending" 
   },
+  sports: {
+    type: [String],
+    enum: ["football", "tennis", "cricket"],
+    required: true
+  },
   createdAt: { type: Date, default: Date.now }
 });
 

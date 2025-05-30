@@ -5,10 +5,11 @@ const router = express.Router();
 const verifyToken = require("../middleware/verifyToken");
 
 router.post("/", bookingController.createBooking);
-router.get("/", bookingController.getAllBookings);
+router.get("/", verifyToken,bookingController.getAllBookings);
 router.get("/:id", bookingController.getBookingById);
-router.put("/:id", bookingController.updateBooking);
-router.delete("/:id", bookingController.deleteBooking);
+router.put("/:id", verifyToken,bookingController.updateStatusBooking);
+router.put("/userUpdateStatus/:id", verifyToken,bookingController.userUpdateBooking);
+router.delete("/delete/:id", verifyToken,bookingController.deleteBooking);
 router.get("/admin/bookings", verifyToken, bookingController.getBookingsForAdmin);
 
 

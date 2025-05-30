@@ -5,30 +5,29 @@ const checkJwt = require('../middleware/checkJwt');
 const verifyToken = require('../middleware/verifyToken');
 const {
   registerAdmin,
-  getAllAdmins,
   getAdminById,
   updateAdmin,
-  deleteAdmin,
+  requestAdminDeletion,
   adminLogin,
   addCourt,
   getCourtsByAdminId,
   changeAdminPassword,
   updateCourtById,
-  verifyAdmin,
+  deleteCourtByAdmin
 } = require("../controllers/adminController");
 
 router.post("/register", upload,registerAdmin);
 console.log("Request received");
 
 router.post("/addCourt",upload,verifyToken,addCourt);
-router.get("/getCourts",verifyToken,getCourtsByAdminId);
-router.get("/", getAllAdmins);
+router.get("/getCourtsByAdminId",verifyToken,getCourtsByAdminId);
 router.post("/login", adminLogin);
 router.get("/:id", getAdminById);
 router.put("/update", updateAdmin);
-router.delete("/:id", deleteAdmin);
+router.delete("/deleteAdmin",verifyToken,requestAdminDeletion);
 router.put("/changePassword", changeAdminPassword);
 router.put("/updateCourt/:courtId", updateCourtById);
+router.delete("/deleteCourt/:courtId", verifyToken,deleteCourtByAdmin);
 
 
 router.get("/protected", checkJwt, (req, res) => {

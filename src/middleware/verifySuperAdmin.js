@@ -16,6 +16,7 @@ const verifySuperAdmin = (req, res, next) => {
       }
   
       req.superAdminId = decoded.superadminId;  // Store SuperAdmin ID in request
+      console.log("super admin id"+superAdminId);
       next();
     } catch (error) {
       return res.status(400).json({ message: "Invalid or expired token." });

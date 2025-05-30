@@ -20,7 +20,7 @@ const courtSchema = new mongoose.Schema({
   ],
   sports: {
     type: [String],
-    enum: ['cricket', 'football', 'tennis'],
+    enum: ['cricket', 'football', 'badminton'],
     required: true,
   },
   agreeTerms: { type: Boolean, required: true },
@@ -47,8 +47,11 @@ const adminSchema = new mongoose.Schema({
     unique: true,
     match: [/^[a-zA-Z0-9]+$/, "Please provide a valid NIC or Passport number"],
   },
-  courts: [courtSchema], // Keeping all court-related fields inside the courts array
-  // isVerified: { type: Boolean, default: false }, // Used to verify the admin
+  courts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Court"
+  }]
+  
 });
 
 // Method to add a new court to the admin's courts array

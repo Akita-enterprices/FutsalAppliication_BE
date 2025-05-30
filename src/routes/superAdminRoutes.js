@@ -5,6 +5,8 @@ const verifySuperAdmin = require("../middleware/verifySuperAdmin");
 
 router.post("/register", superAdminController.registerSuperAdmin);
 router.post("/login", superAdminController.superAdminLogin);
-router.put("/verifyAdmin",verifySuperAdmin, superAdminController.verifyCourt);
+router.put("/verifyAdmin", superAdminController.verifyCourt);
+router.put("/confirmDelete", superAdminController.confirmAdminDeletion);
+router.get("/",superAdminController.getAllAdmins);
 
 module.exports = router;

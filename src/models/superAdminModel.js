@@ -47,5 +47,19 @@ superAdminSchema.pre("save", async function (next) {
     return await bcrypt.compare(candidatePassword, this.password);
   };
 
-const superAdmin = mongoose.model("superAdmin", superAdminSchema);
-module.exports = superAdmin;
+const SuperAdmin = mongoose.model("superAdmin", superAdminSchema);
+// module.exports = superAdmin;
+
+
+
+const pendingDeletionSchema = new mongoose.Schema({
+  adminId: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
+  email: { type: String, required: true }, 
+  token: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now } 
+});
+const PendingDeletion = mongoose.model("pendingDeletion", pendingDeletionSchema);
+
+module.exports = {SuperAdmin,PendingDeletion}
+// module.exports = mongoose.model("PendingDeletion", pendingDeletionSchema);
+
