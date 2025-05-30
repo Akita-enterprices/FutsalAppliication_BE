@@ -4,6 +4,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const sendEmail = require("../utils/email");
+const {PendingDeletion} = require("../models/superAdminModel");
+const Booking = require("../models/bookingModel");
+const {SuperAdmin} = require("../models/superAdminModel");
+const mongoose = require("mongoose");
+
 
 exports.registerAdmin = async (req, res) => {
   const {
@@ -25,7 +30,6 @@ exports.registerAdmin = async (req, res) => {
   } = req.body;
 
   try {
-    // Convert agreeTerms to Boolean
     const agreeTermsBoolean = agreeTerms === "true" || agreeTerms === true;
 
     // Validate required fields
@@ -38,15 +42,14 @@ exports.registerAdmin = async (req, res) => {
       return res.status(400).json({ message: "All fields are required." });
     }
 
-    // Ensure numeric fields are valid
     const validatedCapacity = isNaN(parseInt(capacity)) ? 0 : parseInt(capacity);
     const validatedLength = isNaN(parseFloat(length)) ? 0 : parseFloat(length);
     const validatedWidth = isNaN(parseFloat(width)) ? 0 : parseFloat(width);
 
-    const validSports = ['cricket', 'football', 'tennis'];
+    const validSports = ['cricket', 'football', 'badminton'];
     const invalidSports = sports.filter((s) => !validSports.includes(s));
     if (invalidSports.length > 0) {
-      return res.status(400).json({ message: `Invalid sport(s): ${invalidSports.join(", ")}` });
+      return res.status(400).json({ message: `Invalid sport(s): ${invalidSports.join(", ")}. Valid sports are: ${validSports.join(", ")}` });
     }
 
     // Check if images are uploaded
@@ -65,38 +68,36 @@ exports.registerAdmin = async (req, res) => {
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    console.log("Generated Verification Token:", verificationToken);
 
-    // Create new admin with courts array
+    // Create a new Court
+    const newCourt = new Court({
+      futsalName,
+      idNumber,
+      address,
+      dayRate,
+      nightRate,
+      capacity: validatedCapacity,
+      length: validatedLength,
+      width: validatedWidth,
+      specification,
+      fileName: imageUrls,
+      sports,
+      agreeTerms: agreeTermsBoolean,
+      isVerified: false,
+      verificationToken,
+    });
+
+    const savedCourt = await newCourt.save();
+
     const newAdmin = new Admin({
       name,
       email,
-      password, // Auto-hashed by Mongoose middleware
+      password,
       nicOrPassport,
-      courts: [
-        {
-          futsalName,
-          idNumber,
-          address,
-          dayRate,
-          nightRate,
-          capacity: validatedCapacity,
-          length: validatedLength,
-          width: validatedWidth,
-          specification,
-          fileName: imageUrls,
-          sports,
-          agreeTerms: agreeTermsBoolean,
-          isVerified: false,
-          verificationToken,
-        },
-      ],
+      courts: [savedCourt._id], 
     });
 
-    console.log("Before Saving Admin:", newAdmin);
-    await newAdmin.save();
-
-    console.log("After Saving Admin:", await Admin.findById(newAdmin._id));
+    const savedAdmin = await newAdmin.save();
 
     // Send verification email to Super Admin
     const verificationLink = `${process.env.CLIENT_URL}/admin/verify?token=${verificationToken}`;
@@ -119,29 +120,30 @@ exports.registerAdmin = async (req, res) => {
 
     await sendEmail(process.env.SUPER_ADMIN_EMAIL, "Verify New Admin", emailContent);
 
+    // Admin email content
     const adminEmailContent = `
-    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
-      <h2 style="color: #333;">Registration Successful</h2>
-      <p style="font-size: 16px; color: #555;">
-        Dear ${name}, your registration for ${futsalName} has been received.
-      </p>
-      <p style="font-size: 16px; color: #555;">
-        Your account is currently pending verification by the Super Admin. You will receive a notification once your account has been approved.
-      </p>
-      <p style="color: #777;">If you have any questions, please contact our support team.</p>
-    </div>
-  `;
+      <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
+        <h2 style="color: #333;">Registration Successful</h2>
+        <p style="font-size: 16px; color: #555;">
+          Dear ${name}, your registration for ${futsalName} has been received.
+        </p>
+        <p style="font-size: 16px; color: #555;">
+          Your account is currently pending verification by the Super Admin. You will receive a notification once your account has been approved.
+        </p>
+        <p style="color: #777;">If you have any questions, please contact our support team.</p>
+      </div>
+    `;
 
     await sendEmail(email, "Futsal Booking System - Registration Received", adminEmailContent);
 
     res.status(201).json({
       message: "Admin registered successfully! Pending Super Admin verification.",
       admin: {
-        name: newAdmin.name,
-        email: newAdmin.email,
-        nicOrPassport: newAdmin.nicOrPassport,
-        futsalName: newAdmin.courts[0].futsalName,
-        verificationToken: newAdmin.courts[0].verificationToken,
+        name: savedAdmin.name,
+        email: savedAdmin.email,
+        nicOrPassport: savedAdmin.nicOrPassport,
+        futsalName: futsalName,
+        verificationToken: verificationToken,
       },
     });
   } catch (error) {
@@ -149,7 +151,6 @@ exports.registerAdmin = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 
 // Admin Login
 exports.adminLogin = async (req, res) => {
@@ -161,7 +162,7 @@ exports.adminLogin = async (req, res) => {
 
   try {
     // Find the admin by email OR NIC/Passport
-    const admin = await Admin.findOne({ $or: [{ email: username }, { nicOrPassport: username }] });
+    const admin = await Admin.findOne({ $or: [{ email: username }, { nicOrPassport: username }] }).populate("courts");
 
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials" });
@@ -175,7 +176,6 @@ exports.adminLogin = async (req, res) => {
     }
 
 
-    // Compare the password
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
       console.log("Incorrect password");
@@ -203,7 +203,6 @@ exports.adminLogin = async (req, res) => {
 // Change Admin Password
 exports.changeAdminPassword = async (req, res) => {
   try {
-    // Extract token from headers
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       return res.status(401).json({ message: "Unauthorized: No token provided" });
@@ -240,8 +239,6 @@ exports.changeAdminPassword = async (req, res) => {
     if (newPassword.length < 8) {
       return res.status(400).json({ message: "New password should be at least 8 characters long" });
     }
-
-    // Update password (Mongoose `pre("save")` middleware will hash it)
     admin.password = newPassword;
     await admin.save();
 
@@ -252,8 +249,6 @@ exports.changeAdminPassword = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-
 
 exports.addCourt = async (req, res) => {
   try {
@@ -272,7 +267,7 @@ exports.addCourt = async (req, res) => {
         ? sports.split(',').map(s => s.trim().toLowerCase())
         : [];
 
-    const allowedSports = ['cricket', 'football', 'tennis'];
+    const allowedSports = ['cricket', 'football', 'badminton'];
     const invalidSports = sportsArray.filter(s => !allowedSports.includes(s));
 
     if (invalidSports.length > 0) {
@@ -303,26 +298,28 @@ exports.addCourt = async (req, res) => {
     // Generate a verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
-    // Add the new court to the admin's courts array
-    const newCourt = {
-      futsalName,
-      idNumber,
-      address,
-      dayRate,
-      nightRate,
-      capacity: validatedCapacity,
-      length: validatedLength,
-      width: validatedWidth,
-      specification,
-      fileName: imageUrls,
-      agreeTerms,
-      isVerified: false,
-      sports: sportsArray,
-      verificationToken, // Store the token for verification
-    };
+const newCourt = new Court({
+  futsalName,
+  idNumber,
+  address,
+  dayRate,
+  nightRate,
+  capacity: validatedCapacity,
+  length: validatedLength,
+  width: validatedWidth,
+  specification,
+  fileName: imageUrls,
+  agreeTerms,
+  isVerified: false,
+  sports: sportsArray,
+  verificationToken,
+});
+await newCourt.save();
 
-    admin.courts.push(newCourt);
-    await admin.save();
+
+admin.courts.push(newCourt._id);
+await admin.save();
+
 
     // Send verification email to Super Admin
     const verificationLink = `${process.env.CLIENT_URL}/admin/verify-court?token=${verificationToken}`;
@@ -345,45 +342,29 @@ exports.addCourt = async (req, res) => {
 
     await sendEmail(process.env.SUPER_ADMIN_EMAIL, "Verify New Court", emailContent);
 
-    res.status(201).json({ message: "Court added successfully. Pending Super Admin verification.", courts: admin.courts });
+    res.status(201).json({ message: "Court added successfully. Pending Super Admin verification.",   court: newCourt  });
   } catch (error) {
     console.error("Error adding court:", error);
     res.status(500).json({ message: "Server error", error: error.stack });
   }
 };
 
-
-
 exports.getCourtsByAdminId = async (req, res) => {
   try {
-    const adminId = req.user.adminId;  // Assuming adminId is in the token payload
-    const admin = await Admin.findById(adminId).select("courts");  // Select only the courts field
+    const adminId = req.user.adminId; 
+    const admin = await Admin.findById(adminId).select("courts");  
 
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
-
+    const courts = await Court.find({ _id: { $in: admin.courts } });
     // Return the courts associated with this admin
-    res.status(200).json({ courts: admin.courts });
+    res.status(200).json({ courts });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-exports.getAllAdmins = async (req, res) => {
-  try {
-    const admins = await Admin.find().populate({
-      path: "courts.fileName", // Populate fileName inside courts
-      model: "Image", // Ensure it references the Image model
-    });
-
-    res.json(admins);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 
 // GET request to fetch a single admin by ID
 exports.getAdminById = async (req, res) => {
@@ -405,19 +386,18 @@ exports.getAdminById = async (req, res) => {
   }
 };
 
-
 // PUT request to update an admin by ID
 exports.updateAdmin = async (req, res) => {
   try {
     // Extract the token from headers
-    const token = req.headers.authorization?.split(" ")[1]; // Format: "Bearer TOKEN"
+    const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       return res.status(401).json({ message: "Unauthorized: No token provided" });
     }
 
     // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const adminId = decoded.adminId; // Assuming `adminId` is stored in the token payload
+    const adminId = decoded.adminId; 
 
     if (!adminId) {
       return res.status(403).json({ message: "Forbidden: Invalid token" });
@@ -425,7 +405,6 @@ exports.updateAdmin = async (req, res) => {
 
     const { name, email } = req.body;
 
-    // Find the admin by ID
     let admin = await Admin.findById(adminId);
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
@@ -454,30 +433,51 @@ exports.updateAdmin = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-
-
-
-
-
 // DELETE request to delete an admin by ID
-exports.deleteAdmin = async (req, res) => {
-  const adminId = req.params.id;
-
+exports.requestAdminDeletion = async (req, res) => {
   try {
-    // Find admin by ID and delete
-    const deletedAdmin = await Admin.findByIdAndDelete(adminId);
+    const adminId = req.user.adminId;
+    console.log(adminId);
+    const adminEmailFromAuth0 = req.user?.email;
 
-    if (!deletedAdmin) {
-      return res.status(404).json({ message: "Admin not found" });
+    if (!adminId || !adminEmailFromAuth0) {
+      return res.status(400).json({ message: "Auth token missing email or ID." });
     }
 
-    res.json({ message: "Admin deleted successfully!" });
+    const admin = await Admin.findById(adminId); 
+    console.log("admin "+admin);
+    console.log("admin id "+adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found." });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    await PendingDeletion.create({
+      adminId: admin._id,
+      token,
+      email: adminEmailFromAuth0,
+    });
+
+    const deletionLink = `${process.env.CLIENT_URL}/admin/verify?token=${token}`;
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+
+    if (!superAdminEmail) {
+      return res.status(500).json({ message: "Super admin email is not configured." });
+    }
+
+    await sendEmail(superAdminEmail, "Admin Deletion Request", `
+      <p>An admin has requested account deletion.</p>
+      <p>Click <a href="${deletionLink}">here</a> to approve and delete.</p>
+    `);
+
+    res.status(200).json({ message: "Deletion request sent to super admin." });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error in requestAdminDeletion:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 exports.updateCourtById = async (req, res) => {
   try {
@@ -503,19 +503,16 @@ exports.updateCourtById = async (req, res) => {
       return res.status(400).json({ message: "Updating 'idNumber' is not allowed" });
     }
 
-    // ✅ Find the Admin who owns this court
     const admin = await Admin.findById(adminId);
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
 
-    // ✅ Find the specific court in the admin's courts array
     const court = admin.courts.find((c) => c._id.toString() === courtId);
     if (!court) {
       return res.status(404).json({ message: "Court not found or unauthorized" });
     }
 
-    // ✅ Handle updating images by image ID
     if (updateData.images && Array.isArray(updateData.images)) {
       for (const { imageId, newImage } of updateData.images) {
         const imageIndex = court.fileName.findIndex((img) => img._id.toString() === imageId);
@@ -525,7 +522,6 @@ exports.updateCourtById = async (req, res) => {
       }
     }
 
-    // ✅ Update other court fields (excluding `idNumber` and `images`)
     Object.keys(updateData).forEach((key) => {
       if (key !== "idNumber" && key !== "images") {
         court[key] = updateData[key];
@@ -540,7 +536,58 @@ exports.updateCourtById = async (req, res) => {
   }
 };
 
+exports.deleteCourtByAdmin = async (req, res) => {
+  const { courtId } = req.params;
 
+  try {
+    const court = await Court.findById(courtId);
+    if (!court) {
+      return res.status(404).json({ message: 'Court not found.' });
+    }
+    const adminId     = req.user.adminId;
+    console.log("admin id"+adminId);
+
+    const admin = await Admin.findById(adminId);
+    console.log("admin"+admin);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    console.log('Court ID:', courtId);
+    console.log('Admin courts:', admin.courts.map(c => c.toString()));
+
+    const ownsCourt = admin.courts.some(id => id.toString() === courtId);
+    console.log('Owns court?', ownsCourt);
+
+    if (!ownsCourt) {
+      return res.status(403).json({ message: 'You are not authorized to delete this court.' });
+    }
+
+    const hasBookings = await Booking.exists({ court: courtId });
+    if (hasBookings) {
+      return res.status(400).json({ message: 'Cannot delete this court; it has associated bookings.' });
+    }
+
+    await Court.findByIdAndDelete(courtId);
+    await Admin.findByIdAndUpdate(adminId, { $pull: { courts: courtId } });
+
+    const superAdmins = await SuperAdmin.find({}, 'email name');
+    const superEmails = superAdmins.map(sa => sa.email);
+
+    if (superEmails.length) {
+      await sendEmail({
+        to: superEmails,
+        subject: 'Court deleted by admin',
+        text:    `Admin ${admin.name} deleted the court "${court.futsalName}".`,
+        html:    `<p>Admin <b>${admin.name}</b> has deleted the court <b>${court.futsalName}</b>.</p>`
+      });
+    }
+
+    return res.status(200).json({ message: 'Court deleted successfully. Super-Admin notified.' });
+  } catch (err) {
+    console.error('Error deleting court:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
 
 
 

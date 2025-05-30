@@ -7,38 +7,11 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "1h" });
 };
 
-// Signup
-// exports.signup = async (req, res) => {
-//   const { name, email, password, phone, nicOrPassport, address } = req.body;
+// const jwt = require("jsonwebtoken");
+// const bcrypt = require("bcryptjs");
+// const User = require("../models/userModel");
+// const sendEmail = require("../utils/email"); 
 
-//   try {
-//     // Check if user already exists
-//     const userExists = await User.findOne({ email });
-//     if (userExists) {
-//       return res.status(400).json({ message: "User already exists" });
-//     }
-
-//     // Create new user
-//     const newUser = new User({ name, email, password, phone, nicOrPassport, address });
-//     const user = await newUser.save();
-
-//     if (user) {
-//       return res.status(201).json({
-//         _id: user._id,
-//         name: user.name,
-//         email: user.email,
-//         nicOrPassport:user.nicOrPassport,
-//         phone: user.phone,
-//         address: user.address,
-//       });
-//     } else {
-//       return res.status(400).json({ message: "Failed to create user" });
-//     }
-//   } catch (error) {
-//     console.error("Signup Error:", error);
-//     return res.status(500).json({ message: "Server error during signup" });
-//   }
-// };
 exports.signup = async (req, res) => {
   const { name, email, password, phone, nicOrPassport, address } = req.body;
 
@@ -50,43 +23,63 @@ exports.signup = async (req, res) => {
     }
 
     // Create new user
-    const newUser = new User({ name, email, password, phone, nicOrPassport, address, isVerified: false });
+    const newUser = new User({
+      name,
+      email,
+      password,
+      phone,
+      nicOrPassport,
+      address,
+      isVerified: false,
+    });
+
     const user = await newUser.save();
 
-    if (user) {
-      // Generate email verification token (valid for 1 hour)
-      const verificationToken = jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    // Generate email verification token
+    const verificationToken = jwt.sign(
+      { email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
-      // Create the verification URL (you will need to have this route in the frontend)
-      const verificationLink = `${process.env.CLIENT_URL}/api/auth/verify-email?token=${verificationToken}`;
+    // Create verification link
+    const verificationLink = `${process.env.CLIENT_URL}/api/auth/verify-email?token=${verificationToken}`;
 
-      // Send verification email to the user
-      const emailContent = `
-        <h2>Welcome to Our Futsal Application Plattform, ${user.name}!</h2>
-        <p>Thank you for registering. Please verify your email address by clicking the link below:</p>
-        <a href="${verificationLink}" style="color: blue; font-size: 16px;">Verify Email</a>
-        <p>This link will expire in 1 hour.</p>
-      `;
+    // Email content
+    const emailContent = `
+      <h2>Welcome to Our Futsal Booking Platform, ${user.name}!</h2>
+      <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
+      <p>
+        <a href="${verificationLink}" style="background: #007BFF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+          Verify Email
+        </a>
+      </p>
+      <p>This link will expire in 1 hour.</p>
+    `;
 
+    // Send email
+    try {
       await sendEmail(user.email, "Email Verification", emailContent);
-
-      return res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        nicOrPassport: user.nicOrPassport,
-        phone: user.phone,
-        address: user.address,
-        message: "Registration successful! Please check your email to verify your account.",
-      });
-    } else {
-      return res.status(400).json({ message: "Failed to create user" });
+    } catch (emailError) {
+      console.error("Error sending verification email:", emailError);
+      return res.status(500).json({ message: "Failed to send verification email" });
     }
+
+    return res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      nicOrPassport: user.nicOrPassport,
+      phone: user.phone,
+      address: user.address,
+      message: "Registration successful! Please check your email to verify your account.",
+    });
   } catch (error) {
     console.error("Signup Error:", error);
     return res.status(500).json({ message: "Server error during signup" });
   }
 };
+
 
 exports.verifyEmail = async (req, res) => {
   const { token } = req.query;

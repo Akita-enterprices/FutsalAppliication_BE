@@ -2,7 +2,6 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const verifyToken = (req, res, next) => {
-  // Extract token from headers
   const token = req.header("Authorization")?.replace("Bearer ", "");
 
   if (!token) {
@@ -10,9 +9,8 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
-    // Decode the token using the same secret key (HS256)
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Store user ID (adminId) in request
+    req.user = decoded; // decoded.adminId will be available
     next();
   } catch (error) {
     res.status(401).json({ error: "Invalid Token" });
