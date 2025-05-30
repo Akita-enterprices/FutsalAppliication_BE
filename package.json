@@ -4,8 +4,8 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon src/server.js",
-    "dev": "nodemon src/server.js"
+    "start": "node api.js && nodemon src/server.js",
+    "dev": "node api.js && nodemon src/server.js"
   },
   "author": "Akita Enterprices",
   "license": "ISC",
