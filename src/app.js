@@ -7,6 +7,7 @@ const bookingRoutes = require("./routes/bookingRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
+const courtRoutes = require("./routes/courtsRoutes");
 const config = require("./config/config");
 const errorHandler = require("./utils/errorHandler");
 const cors = require("cors");
@@ -51,6 +52,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/available-times", availableRoutes);
 app.use("/api/superAdmin",superAdminRoutes);
+app.use("/api/courts", courtRoutes);
 app.use(errorHandler);
 
 module.exports = app;
